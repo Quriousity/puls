@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+build/
+
+# Design & static assets
+public/
+src/app/globals.css
+src/app/favicon.ico
+**/*.svg
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.ico
+**/*.webp
+**/*.avif
+**/*.woff
+**/*.woff2
+**/*.ttf
+**/*.otf
+
+# Styling
+tailwind.config.*
+postcss.config.*
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# Git
+.git/
+.gitignore
+
+# Env
+.env*
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,26 +1,66 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* 클래스 기반 다크모드 (.dark) */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface:         var(--surface);
+  --color-surface-raised:  var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-hover:   var(--surface-hover);
+
+  --color-fg:              var(--fg);
+  --color-fg-muted:        var(--fg-muted);
+  --color-fg-subtle:       var(--fg-subtle);
+
+  --color-border:          var(--border);
+  --color-border-subtle:   var(--border-subtle);
+
+  --color-accent:          var(--accent);
+  --color-accent-hover:    var(--accent-hover);
+  --color-accent-fg:       var(--accent-fg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Light mode ─────────────────────────────────────
+   base → 한 단계씩 어두워짐 (zinc-100 → 200 → 300 → 400)
+──────────────────────────────────────────────────── */
+:root {
+  /* --surface:         #e4e4e7; zinc-200  페이지 배경 */
+  --surface:         #f4f4f5; /* zinc-100  페이지 배경 */
+  --surface-raised:  #e4e4e7; /* zinc-200  사이드바·헤더 */
+  --surface-overlay: #fafafa; /* zinc-50   인풋·플로팅 */
+  --surface-hover:   #d4d4d8; /* zinc-300  호버 */
+
+  --fg:              #18181b; /* zinc-900  기본 텍스트 */
+  --fg2:              #71717a; /* zinc-700  보조 텍스트 */
+  --fg-muted:        #71717a; /* zinc-500  보조 텍스트 */
+  --fg-subtle:       #a1a1aa; /* zinc-400  비활성 텍스트 */
+
+  --border:          #d4d4d8; /* zinc-300 */
+  --border-subtle:   #e4e4e7; /* zinc-200 */
+
+  --accent:          #fb923c; /* orange-500 */
+  --accent-hover:    #fb923c; /* orange-600 */
+  --accent-fg:       #fff7ed; /* zinc-900 */
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Dark mode ──────────────────────────────────────
+   base → 한 단계씩 밝아짐 (zinc-900 → 800 → 700 → 600)
+──────────────────────────────────────────────────── */
+.dark {
+  --surface:         #18181b; /* zinc-900  페이지 배경 */
+  --surface-raised:  #27272a; /* zinc-800  사이드바·헤더 */
+  --surface-overlay: #3f3f46; /* zinc-700  카드·모달 */
+  --surface-hover:   #52525b; /* zinc-600  호버 */
+
+  --fg:              #f4f4f5; /* zinc-100  기본 텍스트 */
+  --fg-muted:        #a1a1aa; /* zinc-400  보조 텍스트 */
+  --fg-subtle:       #71717a; /* zinc-500  비활성 텍스트 */
+
+  --border:          #3f3f46; /* zinc-700 */
+  --border-subtle:   #27272a; /* zinc-800 */
+
+  --accent:          #f97316; /* orange-500 */
+  --accent-hover:    #ea580c; /* orange-600 */
+  --accent-fg:       #fff7ed; /* zinc-900 */
 }
