@@ -35,6 +35,22 @@ const navItems = [...mainNavItems, settingsItem];
 const btnActive = "bg-surface-overlay text-fg dark:text-zinc-100";
 const btnIdle   = "text-fg-muted dark:text-zinc-400 hover:text-fg-muted hover:bg-surface-overlay/60";
 
+// 파비콘의 펄스 라인 (배경 원 없이, 텍스트 색을 따라감)
+function PulseMark({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" className="flex-shrink-0" aria-hidden>
+      <polyline
+        points="2,17 8,17 10,14 12,17 13,20 16,4 18,22 20,17 22,13 25,17 30,17"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function Divider({ collapsed }: { collapsed: boolean }) {
   return (
     <div className="my-2 flex justify-center">
@@ -104,8 +120,9 @@ export default function Home() {
             <button
               onClick={openGame}
               title="2048 게임"
-              className="text-base font-bold tracking-widest text-fg dark:text-zinc-100 truncate hover:text-orange-400 transition-colors"
+              className="flex items-center gap-2 text-base font-bold tracking-widest text-fg dark:text-zinc-100 truncate hover:text-orange-400 transition-colors"
             >
+              <PulseMark size={20} />
               PULS
             </button>
           )}
@@ -192,8 +209,9 @@ export default function Home() {
         <header className="md:hidden relative flex-shrink-0 h-14 flex items-center justify-between px-4 border-b border-border bg-surface-raised">
           <button
             onClick={openGame}
-            className="text-base font-bold tracking-widest text-fg dark:text-zinc-100 hover:text-orange-400 transition-colors"
+            className="flex items-center gap-2 text-base font-bold tracking-widest text-fg dark:text-zinc-100 hover:text-orange-400 transition-colors"
           >
+            <PulseMark size={20} />
             PULS
           </button>
           <button
