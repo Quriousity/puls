@@ -19,6 +19,7 @@ import Weight from "@/components/Weight";
 import Running from "@/components/Running";
 import History from "@/components/History";
 import Settings from "@/components/Settings";
+import Game2048 from "@/components/Game2048";
 
 const mainNavItems = [
   { icon: ChartLine, label: "대시보드", component: Dashboard },
@@ -47,6 +48,17 @@ export default function Home() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showGame, setShowGame] = useState(false);
+
+  function openGame() {
+    setShowGame(true);
+    setMenuOpen(false);
+  }
+
+  function selectNav(i: number) {
+    setActiveIndex(i);
+    setShowGame(false);
+  }
 
   function signOut() {
     window.location.href = "/auth";
@@ -89,9 +101,13 @@ export default function Home() {
         {/* Logo */}
         <div className={`h-16 flex items-center ${collapsed ? "justify-center" : "px-3 justify-between"}`}>
           {!collapsed && (
-            <span className="text-base font-bold tracking-widest text-fg dark:text-zinc-100 truncate">
+            <button
+              onClick={openGame}
+              title="2048 게임"
+              className="text-base font-bold tracking-widest text-fg dark:text-zinc-100 truncate hover:text-orange-400 transition-colors"
+            >
               PULS
-            </span>
+            </button>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -110,9 +126,9 @@ export default function Home() {
             {mainNavItems.map(({ icon: Icon, label }, i) => (
               <button
                 key={label}
-                onClick={() => setActiveIndex(i)}
+                onClick={() => selectNav(i)}
                 title={collapsed ? label : undefined}
-                className={`${btnBase} ${i === activeIndex ? btnActive : btnIdle}`}
+                className={`${btnBase} ${!showGame && i === activeIndex ? btnActive : btnIdle}`}
               >
                 <Icon size={20} weight={i === activeIndex ? "fill" : "regular"} className="flex-shrink-0" />
                 {!collapsed && <span className="truncate">{label}</span>}
@@ -149,9 +165,9 @@ export default function Home() {
 
             {/* 설정 */}
             <button
-              onClick={() => setActiveIndex(4)}
+              onClick={() => selectNav(4)}
               title={collapsed ? "설정" : undefined}
-              className={`${btnBase} ${activeIndex === 4 ? btnActive : btnIdle}`}
+              className={`${btnBase} ${!showGame && activeIndex === 4 ? btnActive : btnIdle}`}
             >
               <Gear size={20} weight={activeIndex === 4 ? "fill" : "regular"} className="flex-shrink-0" />
               {!collapsed && <span className="truncate">설정</span>}
@@ -174,9 +190,12 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
         <header className="md:hidden relative flex-shrink-0 h-14 flex items-center justify-between px-4 border-b border-border bg-surface-raised">
-          <span className="text-base font-bold tracking-widest text-fg dark:text-zinc-100">
+          <button
+            onClick={openGame}
+            className="text-base font-bold tracking-widest text-fg dark:text-zinc-100 hover:text-orange-400 transition-colors"
+          >
             PULS
-          </span>
+          </button>
           <button
             onClick={() => setMenuOpen(o => !o)}
             className="p-1.5 rounded-md text-fg-muted dark:text-zinc-400 hover:text-fg hover:bg-surface-overlay transition-colors"
@@ -207,7 +226,7 @@ export default function Home() {
                   {isDark ? "라이트 모드" : "다크 모드"}
                 </button>
                 <button
-                  onClick={() => { setActiveIndex(4); setMenuOpen(false); }}
+                  onClick={() => { selectNav(4); setMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-fg-muted hover:text-fg hover:bg-surface-raised transition-colors"
                 >
                   <Gear size={18} className="flex-shrink-0" />
@@ -227,7 +246,7 @@ export default function Home() {
 
         {/* Content */}
         <main className="flex-1 overflow-auto">
-          <ActiveComponent />
+          {showGame ? <Game2048 onExit={() => setShowGame(false)} /> : <ActiveComponent />}
         </main>
 
         {/* Mobile Bottom Tab Bar */}
@@ -235,9 +254,9 @@ export default function Home() {
           {mainNavItems.map(({ icon: Icon, label }, i) => (
             <button
               key={label}
-              onClick={() => setActiveIndex(i)}
+              onClick={() => selectNav(i)}
               className={`flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors ${
-                i === activeIndex ? "text-fg dark:text-zinc-100" : "text-fg-muted dark:text-zinc-400"
+                !showGame && i === activeIndex ? "text-fg dark:text-zinc-100" : "text-fg-muted dark:text-zinc-400"
               }`}
             >
               <Icon size={22} weight={i === activeIndex ? "fill" : "regular"} />
