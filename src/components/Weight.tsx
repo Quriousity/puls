@@ -1,16 +1,59 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, Trash, X, MagnifyingGlass, CaretDown } from "@phosphor-icons/react";
+import { Plus, Trash, X, MagnifyingGlass, CaretDown, MapPin } from "@phosphor-icons/react";
 import { useExercises } from "@/hooks/useExercises";
-import { exerciseGroups } from "@/data/exercises";
-import { createClient } from "@/lib/supabase";
+import { useSettings } from "@/hooks/useSettings";
+import { exerciseGroups, isBodyweight } from "@/data/exercises";
+import HeroCarousel, { unsplash, type HeroItem } from "@/components/HeroCarousel";
 
 type Set = { weight: string; reps: string };
 type Exercise = { name: string; sets: Set[] };
 
+// 광고용 hero (웨이트)
+const heroes: HeroItem[] = [
+  { img: unsplash("1517836357463-d25dfeac3438"), title: "한 세트 더, 한계를 넘어라", sub: "프리미엄 스트랩 · 벨트 · 보호대" },
+  { img: unsplash("1539794830467-1f1755804d13"), title: "운동복도 실력이다", sub: "프리미엄 짐웨어 컬렉션" },
+  { img: unsplash("1593095948071-474c5cc2989d"), title: "운동만큼 중요한 회복", sub: "프로틴 파우더" },
+];
+
+function Toggle({
+  label,
+  on,
+  onChange,
+}: {
+  label: string;
+  on: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-sm text-fg-muted">{label}</span>
+      <button
+        role="switch"
+        aria-checked={on}
+        onClick={onChange}
+        className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
+          on ? "bg-orange-500/70" : "bg-surface-overlay border border-border"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+            on ? "translate-x-4" : ""
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+// 맨몸 운동이면 무게 0, 아니면 빈 값
+function defaultWeight(name: string): string {
+  return isBodyweight(name) ? "0" : "";
+}
+
 function newExercise(name = exerciseGroups[0].items[0]): Exercise {
-  return { name, sets: [{ weight: "", reps: "" }] };
+  return { name, sets: [{ weight: defaultWeight(name), reps: "" }] };
 }
 
 function ExerciseSelect({
@@ -127,23 +170,16 @@ function ExerciseSelect({
 
 export default function Weight() {
   const { groups } = useExercises();
+  const { tools, toggleTool } = useSettings();
   const [exercises, setExercises] = useState<Exercise[]>([newExercise()]);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const supabase = createClient();
 
-  async function saveWorkout() {
+  function saveWorkout() {
     const filled = exercises.filter(ex =>
       ex.sets.some(s => s.weight !== "" || s.reps !== "")
     );
     if (!filled.length) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    setSaving(true);
-    await supabase.from("workouts").insert({ user_id: user.id, exercises: filled });
-    setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     setExercises([newExercise()]);
@@ -159,14 +195,23 @@ export default function Weight() {
 
   function updateName(exIdx: number, name: string) {
     setExercises(prev =>
-      prev.map((ex, i) => (i === exIdx ? { ...ex, name } : ex))
+      prev.map((ex, i) =>
+        i === exIdx
+          ? {
+              ...ex,
+              name,
+              // 빈 무게칸은 운동에 맞는 기본값(맨몸=0)으로 채움
+              sets: ex.sets.map(s => ({ ...s, weight: s.weight === "" ? defaultWeight(name) : s.weight })),
+            }
+          : ex
+      )
     );
   }
 
   function addSet(exIdx: number) {
     setExercises(prev =>
       prev.map((ex, i) =>
-        i === exIdx ? { ...ex, sets: [...ex.sets, { weight: "", reps: "" }] } : ex
+        i === exIdx ? { ...ex, sets: [...ex.sets, { weight: defaultWeight(ex.name), reps: "" }] } : ex
       )
     );
   }
@@ -191,6 +236,21 @@ export default function Weight() {
 
   return (
     <div className="p-6 space-y-3 max-w-lg mx-auto">
+      {/* 운동할 곳 찾기 */}
+      <button className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 transition-colors text-sm font-medium">
+        <MapPin size={16} weight="fill" />
+        운동할 곳 찾기
+      </button>
+
+      {/* 광고 Hero (캐러셀) */}
+      <HeroCarousel items={heroes} />
+
+      {/* 운동 도구 */}
+      <div className="rounded-xl bg-surface-raised border border-border px-4 py-2 divide-y divide-border">
+        <Toggle label="시간 기록" on={tools.stopwatch} onChange={() => toggleTool("stopwatch")} />
+        <Toggle label="메모" on={tools.memo} onChange={() => toggleTool("memo")} />
+      </div>
+
       {exercises.map((ex, exIdx) => (
         <div key={exIdx} className="rounded-xl bg-surface p-4 space-y-3 border border-border">
           {/* 운동 선택 */}
@@ -224,7 +284,8 @@ export default function Weight() {
                   <td className="py-2 text-zinc-800 dark:text-zinc-200">{setIdx + 1}</td>
                   <td className="py-2 pr-2">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={set.weight}
                       onChange={e => updateSet(exIdx, setIdx, "weight", e.target.value)}
                       placeholder="kg"
@@ -233,7 +294,8 @@ export default function Weight() {
                   </td>
                   <td className="py-2">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={set.reps}
                       onChange={e => updateSet(exIdx, setIdx, "reps", e.target.value)}
                       placeholder="회"
@@ -278,10 +340,9 @@ export default function Weight() {
       {/* 저장 */}
       <button
         onClick={saveWorkout}
-        disabled={saving}
-        className="w-full py-3 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 transition-colors text-sm font-medium disabled:opacity-50"
+        className="w-full py-3 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 transition-colors text-sm font-medium"
       >
-        {saved ? "저장됨" : saving ? "저장 중..." : "오늘 운동 저장"}
+        {saved ? "저장됨" : "오늘 운동 저장"}
       </button>
     </div>
   );

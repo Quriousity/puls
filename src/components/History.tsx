@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CaretLeft, CaretRight, Sneaker, Barbell, Trash } from "@phosphor-icons/react";
-import { createClient } from "@/lib/supabase";
 
 type RunRecord = {
   id: string;
@@ -47,14 +46,6 @@ export default function History() {
   const [today] = useState(new Date());
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [selected, setSelected] = useState<string | null>(null);
-  const supabase = createClient();
-
-  useEffect(() => {
-    supabase.from("runs").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setRuns(data); });
-    supabase.from("workouts").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setWorkouts(data); });
-  }, []);
 
   const { year, month } = cursor;
   const daysInMonth = getDaysInMonth(year, month);
@@ -81,13 +72,11 @@ export default function History() {
     setSelected(s => s === dateKey ? null : dateKey);
   }
 
-  async function deleteRun(id: string) {
-    await supabase.from("runs").delete().eq("id", id);
+  function deleteRun(id: string) {
     setRuns(prev => prev.filter(r => r.id !== id));
   }
 
-  async function deleteWorkout(id: string) {
-    await supabase.from("workouts").delete().eq("id", id);
+  function deleteWorkout(id: string) {
     setWorkouts(prev => prev.filter(w => w.id !== id));
   }
 

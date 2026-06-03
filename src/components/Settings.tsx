@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash, X } from "@phosphor-icons/react";
+import { Plus, Trash, X, ArrowCounterClockwise } from "@phosphor-icons/react";
 import { useExercises } from "@/hooks/useExercises";
 
 function AddInput({
@@ -40,11 +40,20 @@ function AddInput({
 }
 
 export default function Settings() {
-  const { groups, addGroup, removeGroup, addExercise, removeExercise } = useExercises();
+  const { groups, addGroup, removeGroup, addExercise, removeExercise, resetGroups } = useExercises();
 
   return (
     <div className="p-6 max-w-lg mx-auto space-y-6">
-      <h2 className="text-base font-semibold text-fg">운동 목록 관리</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold text-fg">운동 목록 관리</h2>
+        <button
+          onClick={resetGroups}
+          className="flex items-center gap-1.5 text-xs text-fg-subtle hover:text-fg border border-border rounded-lg px-2.5 py-1.5 transition-colors"
+        >
+          <ArrowCounterClockwise size={13} />
+          기본값 복원
+        </button>
+      </div>
 
       <div className="space-y-3">
         {groups.map((g, groupIdx) => (

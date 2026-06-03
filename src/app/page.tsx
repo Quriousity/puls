@@ -13,7 +13,6 @@ import {
   SidebarSimple,
   SignOut,
 } from "@phosphor-icons/react";
-import { createClient } from "@/lib/supabase";
 
 import Dashboard from "@/components/Dashboard";
 import Weight from "@/components/Weight";
@@ -47,10 +46,9 @@ export default function Home() {
   const [isDark, setIsDark] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
-  const supabase = createClient();
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  async function signOut() {
-    await supabase.auth.signOut();
+  function signOut() {
     window.location.href = "/auth";
   }
 
@@ -84,7 +82,7 @@ export default function Home() {
     <div className="flex h-full">
       {/* Sidebar */}
       <aside
-        className={`flex-shrink-0 flex flex-col bg-surface-raised transition-all duration-200 ${
+        className={`hidden md:flex flex-shrink-0 flex-col bg-surface-raised transition-all duration-200 ${
           collapsed ? "w-16" : "w-60"
         }`}
       >
@@ -174,10 +172,79 @@ export default function Home() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        <header className="md:hidden relative flex-shrink-0 h-14 flex items-center justify-between px-4 border-b border-border bg-surface-raised">
+          <span className="text-base font-bold tracking-widest text-fg dark:text-zinc-100">
+            PULS
+          </span>
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            className="p-1.5 rounded-md text-fg-muted dark:text-zinc-400 hover:text-fg hover:bg-surface-overlay transition-colors"
+            aria-label="메뉴"
+          >
+            <User size={22} weight="fill" />
+          </button>
+
+          {/* User Menu */}
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-3 top-full mt-1 w-44 bg-surface-overlay border border-border rounded-xl shadow-lg z-50 py-1">
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-fg-muted hover:text-fg hover:bg-surface-raised transition-colors"
+                >
+                  <User size={18} weight="fill" className="flex-shrink-0" />
+                  프로필
+                </button>
+                <button
+                  onClick={() => { toggleTheme(); setMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-fg-muted hover:text-fg hover:bg-surface-raised transition-colors"
+                >
+                  {isDark
+                    ? <Sun size={18} className="flex-shrink-0" />
+                    : <Moon size={18} className="flex-shrink-0" />}
+                  {isDark ? "라이트 모드" : "다크 모드"}
+                </button>
+                <button
+                  onClick={() => { setActiveIndex(4); setMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-fg-muted hover:text-fg hover:bg-surface-raised transition-colors"
+                >
+                  <Gear size={18} className="flex-shrink-0" />
+                  설정
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); signOut(); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-fg-muted hover:text-fg hover:bg-surface-raised transition-colors"
+                >
+                  <SignOut size={18} className="flex-shrink-0" />
+                  로그아웃
+                </button>
+              </div>
+            </>
+          )}
+        </header>
+
         {/* Content */}
         <main className="flex-1 overflow-auto">
           <ActiveComponent />
         </main>
+
+        {/* Mobile Bottom Tab Bar */}
+        <nav className="md:hidden flex-shrink-0 flex border-t border-border bg-surface-raised">
+          {mainNavItems.map(({ icon: Icon, label }, i) => (
+            <button
+              key={label}
+              onClick={() => setActiveIndex(i)}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors ${
+                i === activeIndex ? "text-fg dark:text-zinc-100" : "text-fg-muted dark:text-zinc-400"
+              }`}
+            >
+              <Icon size={22} weight={i === activeIndex ? "fill" : "regular"} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </div>
   );

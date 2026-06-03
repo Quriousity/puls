@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Pause, Play, Stop, Trash } from "@phosphor-icons/react";
-import { createClient } from "@/lib/supabase";
+import { Pause, Play, Stop, Trash, MapPin } from "@phosphor-icons/react";
+import HeroCarousel, { unsplash, type HeroItem } from "@/components/HeroCarousel";
+
+// 광고용 hero (러닝)
+const heroes: HeroItem[] = [
+  { img: unsplash("1542291026-7eec264c27ff"), title: "더 가볍게, 더 멀리", sub: "프리미엄 러닝화" },
+  { img: unsplash("1486218119243-13883505764c"), title: "달리기 좋은 날", sub: "기능성 러닝 의류" },
+  { img: unsplash("1434494878577-86c23bcb06b9"), title: "기록을 손목 위에", sub: "러닝 워치 · 기타용품" },
+];
 
 type Run = {
   id: string;
@@ -57,17 +64,9 @@ export default function Running() {
   const watchIdRef = useRef<number | null>(null);
   const lastPosRef = useRef<GeolocationCoordinates | null>(null);
   const timerStateRef = useRef<TimerState>("idle");
-  const supabase = createClient();
+  const runIdRef = useRef(0);
 
   useEffect(() => {
-    async function load() {
-      const { data } = await supabase
-        .from("runs")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (data) setRuns(data.map(r => ({ ...r, date: r.created_at })));
-    }
-    load();
     return () => stopAll();
   }, []);
 
@@ -135,24 +134,18 @@ export default function Running() {
     }
   }
 
-  async function stop() {
+  function stop() {
     stopAll();
 
     if (elapsed > 0) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from("runs")
-          .insert({
-            user_id: user.id,
-            distance,
-            minutes: Math.floor(elapsed / 6000),
-            seconds: Math.floor((elapsed % 6000) / 100),
-          })
-          .select()
-          .single();
-        if (data) setRuns(prev => [{ ...data, date: data.created_at }, ...prev]);
-      }
+      const run: Run = {
+        id: String(++runIdRef.current),
+        date: new Date().toISOString(),
+        distance,
+        minutes: Math.floor(elapsed / 6000),
+        seconds: Math.floor((elapsed % 6000) / 100),
+      };
+      setRuns(prev => [run, ...prev]);
     }
 
     setTimerState("idle");
@@ -162,8 +155,7 @@ export default function Running() {
     lastPosRef.current = null;
   }
 
-  async function deleteRun(id: string) {
-    await supabase.from("runs").delete().eq("id", id);
+  function deleteRun(id: string) {
     setRuns(prev => prev.filter(r => r.id !== id));
   }
 
@@ -171,6 +163,15 @@ export default function Running() {
 
   return (
     <div className="max-w-lg mx-auto px-6 py-8 space-y-6">
+
+      {/* 운동할 곳 찾기 */}
+      <button className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 transition-colors text-sm font-medium">
+        <MapPin size={16} weight="fill" />
+        운동할 곳 찾기
+      </button>
+
+      {/* 광고 Hero (캐러셀) */}
+      <HeroCarousel items={heroes} />
 
       {isActive ? (
         <div className="rounded-xl bg-surface border border-border p-6 space-y-6">
