@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Pause, Play, Stop, Trash, MapPin } from "@phosphor-icons/react";
+import { Pause, Play, Stop, Trash, MapPin, X } from "@phosphor-icons/react";
 import HeroCarousel, { unsplash, type HeroItem } from "@/components/HeroCarousel";
+import RunStatsView from "@/components/RunStatsView";
 import { supabase } from "@/lib/supabase";
 
 // 광고용 hero (러닝)
@@ -65,6 +66,7 @@ export default function Running() {
   const [distance, setDistance] = useState(0);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("idle");
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [selectedRun, setSelectedRun] = useState<Run | null>(null);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,30 +265,12 @@ export default function Running() {
             </span>
           </div>
 
-          {/* 거리 */}
-          <div className="text-center">
-            <p className="text-8xl md:text-7xl font-bold text-fg tabular-nums">
-              {distance.toFixed(2)}
-            </p>
-            <p className="text-fg-muted mt-1">km</p>
-          </div>
-
-          {/* 타이머 + 페이스 */}
-          <div className="flex justify-between items-center px-2">
-            <div>
-              <p className="text-xs text-fg-subtle mb-0.5">시간</p>
-              <p className="text-2xl font-mono font-semibold text-fg tabular-nums">
-                {formatDuration(elapsed)}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-fg-subtle mb-0.5">페이스</p>
-              <p className="text-2xl font-semibold text-fg">
-                {formatPace(distance, elapsed / 100)}
-                <span className="text-sm text-fg-muted ml-1">/km</span>
-              </p>
-            </div>
-          </div>
+          {/* 거리 · 시간 · 페이스 (기록 상세와 공용) */}
+          <RunStatsView
+            distance={distance}
+            time={formatDuration(elapsed)}
+            pace={formatPace(distance, elapsed / 100)}
+          />
 
           {/* 컨트롤 */}
           <div className="flex gap-2">
@@ -333,7 +317,11 @@ export default function Running() {
         <div className="space-y-2">
           <p className="text-xs text-fg-subtle uppercase tracking-widest px-1">최근 기록</p>
           {runs.map(run => (
-            <div key={run.id} className="rounded-xl bg-surface-raised border border-border px-4 py-3 flex items-center gap-4">
+            <div
+              key={run.id}
+              onClick={() => setSelectedRun(run)}
+              className="rounded-xl bg-surface-raised border border-border px-4 py-3 flex items-center gap-4 cursor-pointer hover:border-fg-subtle transition-colors"
+            >
               <div className="flex-1 min-w-0">
                 <p className="text-lg font-bold text-fg">{run.distance_km.toFixed(2)} km</p>
                 <div className="flex items-center gap-3 text-xs text-fg-muted">
@@ -343,7 +331,7 @@ export default function Running() {
                 </div>
               </div>
               <button
-                onClick={() => deleteRun(run.id)}
+                onClick={e => { e.stopPropagation(); deleteRun(run.id); }}
                 className="text-fg-subtle hover:text-red-400 transition-colors flex-shrink-0"
               >
                 <Trash size={15} />
@@ -351,6 +339,44 @@ export default function Running() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* 최근 기록 상세 — 달릴 때 화면(RunStatsView) 재사용해 전체화면으로 */}
+      {selectedRun && createPortal(
+        <div className="fixed inset-0 z-50 flex flex-col bg-surface p-6">
+          {/* 헤더: 날짜 + 닫기 */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-fg-subtle">
+              {new Date(selectedRun.performed_on).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })}
+            </p>
+            <button
+              onClick={() => setSelectedRun(null)}
+              className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-overlay transition-colors"
+              aria-label="닫기"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* 통계 (러닝 화면과 동일 레이아웃) */}
+          <div className="flex-1 flex flex-col justify-center gap-6">
+            <RunStatsView
+              distance={selectedRun.distance_km}
+              time={formatDurationSeconds(selectedRun.duration_seconds)}
+              pace={formatPace(selectedRun.distance_km, selectedRun.duration_seconds)}
+            />
+          </div>
+
+          {/* 삭제 */}
+          <button
+            onClick={() => { deleteRun(selectedRun.id); setSelectedRun(null); }}
+            className="w-full py-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+          >
+            <Trash size={16} />
+            기록 삭제
+          </button>
+        </div>,
+        document.body,
       )}
     </div>
   );

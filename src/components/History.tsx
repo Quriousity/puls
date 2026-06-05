@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CaretLeft, CaretRight, Sneaker, Barbell, Trash } from "@phosphor-icons/react";
+import { createPortal } from "react-dom";
+import { CaretLeft, CaretRight, Sneaker, Barbell, Trash, X } from "@phosphor-icons/react";
 import { supabase } from "@/lib/supabase";
+import RunStatsView from "@/components/RunStatsView";
 
 type RunRecord = {
   id: string;
@@ -32,6 +34,13 @@ function formatPace(distanceKm: number, totalSeconds: number): string {
 
 function toDateKey(iso: string) {
   return iso.slice(0, 10); // "YYYY-MM-DD"
+}
+
+// 총 초 → mm:ss
+function formatDurationSeconds(total: number): string {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -74,6 +83,7 @@ export default function History() {
   }, []);
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedRun, setSelectedRun] = useState<RunRecord | null>(null);
 
   const { year, month } = cursor;
   const daysInMonth = getDaysInMonth(year, month);
@@ -232,7 +242,11 @@ export default function History() {
           </p>
 
           {tab === "running" && shownRuns.map(run => (
-            <div key={run.id} className="rounded-xl bg-surface-raised border border-border px-4 py-3 flex items-center gap-4">
+            <div
+              key={run.id}
+              onClick={() => setSelectedRun(run)}
+              className="rounded-xl bg-surface-raised border border-border px-4 py-3 flex items-center gap-4 cursor-pointer hover:border-fg-subtle transition-colors"
+            >
               <div className="flex-1">
                 {!selected && (
                   <p className="text-xs text-fg-subtle">
@@ -241,12 +255,12 @@ export default function History() {
                 )}
                 <p className="text-lg font-bold text-fg">{run.distance_km.toFixed(2)} km</p>
                 <div className="flex gap-3 text-xs text-fg-muted mt-0.5">
-                  <span>{String(Math.floor(run.duration_seconds / 60)).padStart(2, "0")}:{String(run.duration_seconds % 60).padStart(2, "0")}</span>
+                  <span>{formatDurationSeconds(run.duration_seconds)}</span>
                   <span>{formatPace(run.distance_km, run.duration_seconds)} /km</span>
                 </div>
               </div>
               <button
-                onClick={() => deleteRun(run.id)}
+                onClick={e => { e.stopPropagation(); deleteRun(run.id); }}
                 className="text-fg-subtle hover:text-red-400 transition-colors flex-shrink-0"
               >
                 <Trash size={15} />
@@ -288,6 +302,44 @@ export default function History() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* 러닝 기록 상세 — 달릴 때 화면(RunStatsView)을 재사용해 전체화면으로 */}
+      {selectedRun && createPortal(
+        <div className="fixed inset-0 z-50 flex flex-col bg-surface p-6">
+          {/* 헤더: 날짜 + 닫기 */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-fg-subtle">
+              {new Date(selectedRun.performed_on).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })}
+            </p>
+            <button
+              onClick={() => setSelectedRun(null)}
+              className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-overlay transition-colors"
+              aria-label="닫기"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* 통계 (러닝 화면과 동일 레이아웃) */}
+          <div className="flex-1 flex flex-col justify-center gap-6">
+            <RunStatsView
+              distance={selectedRun.distance_km}
+              time={formatDurationSeconds(selectedRun.duration_seconds)}
+              pace={formatPace(selectedRun.distance_km, selectedRun.duration_seconds)}
+            />
+          </div>
+
+          {/* 삭제 */}
+          <button
+            onClick={() => { deleteRun(selectedRun.id); setSelectedRun(null); }}
+            className="w-full py-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+          >
+            <Trash size={16} />
+            기록 삭제
+          </button>
+        </div>,
+        document.body,
       )}
     </div>
   );
