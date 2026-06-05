@@ -14,6 +14,7 @@ import {
   SignOut,
 } from "@phosphor-icons/react";
 
+import { supabase } from "@/lib/supabase";
 import Dashboard from "@/components/Dashboard";
 import Weight from "@/components/Weight";
 import Running from "@/components/Running";
@@ -65,6 +66,18 @@ export default function Home() {
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showGame, setShowGame] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // 세션 가드: 로그인 안 돼 있으면 /auth 로 보냄
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        window.location.href = "/auth";
+        return;
+      }
+      setAuthChecked(true);
+    });
+  }, []);
 
   function openGame() {
     setShowGame(true);
@@ -76,7 +89,8 @@ export default function Home() {
     setShowGame(false);
   }
 
-  function signOut() {
+  async function signOut() {
+    await supabase.auth.signOut();
     window.location.href = "/auth";
   }
 
@@ -99,6 +113,9 @@ export default function Home() {
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
   }
+
+  // 세션 확인 끝나기 전엔 깜빡임 방지로 아무것도 안 그림
+  if (!authChecked) return null;
 
   const ActiveComponent = navItems[activeIndex].component;
 
@@ -206,7 +223,7 @@ export default function Home() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
-        <header className="md:hidden relative flex-shrink-0 h-14 flex items-center justify-between px-4 border-b border-border bg-surface-raised">
+        <header className="run-hide-on-active md:hidden relative flex-shrink-0 h-14 flex items-center justify-between px-4 border-b border-border bg-surface-raised">
           <button
             onClick={openGame}
             className="flex items-center gap-2 text-base font-bold tracking-widest text-fg dark:text-zinc-100 hover:text-orange-400 transition-colors"
@@ -268,7 +285,7 @@ export default function Home() {
         </main>
 
         {/* Mobile Bottom Tab Bar */}
-        <nav className="md:hidden flex-shrink-0 flex border-t border-border bg-surface-raised">
+        <nav className="run-hide-on-active md:hidden flex-shrink-0 flex border-t border-border bg-surface-raised">
           {mainNavItems.map(({ icon: Icon, label }, i) => (
             <button
               key={label}

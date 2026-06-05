@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 
 export type ToolSettings = {
-  stopwatch: boolean; // 시간 기록
-  memo: boolean;      // 메모
+  stopwatch: boolean;         // 시간 기록(세트별)
+  stopwatchExercise: boolean; // 시간 기록(운동별)
+  memo: boolean;              // 메모
 };
 
 const DEFAULT_TOOLS: ToolSettings = {
   stopwatch: false,
+  stopwatchExercise: false,
   memo: false,
 };
 

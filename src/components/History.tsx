@@ -1,19 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CaretLeft, CaretRight, Sneaker, Barbell, Trash } from "@phosphor-icons/react";
+import { supabase } from "@/lib/supabase";
 
 type RunRecord = {
   id: string;
-  distance: number;
-  minutes: number;
-  seconds: number;
+  distance_km: number;
+  duration_seconds: number;
+  performed_on: string; // "YYYY-MM-DD"
   created_at: string;
 };
 
 type WorkoutRecord = {
   id: string;
   exercises: { name: string; sets: { weight: string; reps: string }[] }[];
+  memo: string | null;
+  performed_on: string; // "YYYY-MM-DD"
   created_at: string;
 };
 
@@ -40,10 +43,35 @@ function getFirstDayOfWeek(year: number, month: number) {
 }
 
 export default function History() {
-  const [tab, setTab] = useState<Tab>("running");
+  const [tab, setTab] = useState<Tab>("weight");
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [workouts, setWorkouts] = useState<WorkoutRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [today] = useState(new Date());
+
+  // 저장된 웨이트·러닝 기록 로드 (RLS 로 본인 것만 옴)
+  useEffect(() => {
+    (async () => {
+      const [w, r] = await Promise.all([
+        supabase
+          .from("workouts")
+          .select("id, exercises, memo, performed_on, created_at")
+          .order("performed_on", { ascending: false }),
+        supabase
+          .from("runs")
+          .select("id, distance_km, duration_seconds, performed_on, created_at")
+          .order("performed_on", { ascending: false }),
+      ]);
+
+      if (w.error || r.error) setLoadError(w.error?.message ?? r.error?.message ?? "");
+      else {
+        setWorkouts((w.data ?? []) as WorkoutRecord[]);
+        setRuns((r.data ?? []) as RunRecord[]);
+      }
+      setLoading(false);
+    })();
+  }, []);
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -51,8 +79,11 @@ export default function History() {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfWeek(year, month);
 
-  const activeRecords = tab === "running" ? runs : workouts;
-  const activeDays = new Set(activeRecords.map(r => toDateKey(r.created_at)));
+  const activeDays = new Set(
+    tab === "running"
+      ? runs.map(r => r.performed_on)
+      : workouts.map(w => w.performed_on)
+  );
 
   function prevMonth() {
     setSelected(null);
@@ -72,16 +103,19 @@ export default function History() {
     setSelected(s => s === dateKey ? null : dateKey);
   }
 
-  function deleteRun(id: string) {
-    setRuns(prev => prev.filter(r => r.id !== id));
+  async function deleteRun(id: string) {
+    const { error } = await supabase.from("runs").delete().eq("id", id);
+    if (!error) setRuns(prev => prev.filter(r => r.id !== id));
   }
 
-  function deleteWorkout(id: string) {
-    setWorkouts(prev => prev.filter(w => w.id !== id));
+  async function deleteWorkout(id: string) {
+    const { error } = await supabase.from("workouts").delete().eq("id", id);
+    if (!error) setWorkouts(prev => prev.filter(w => w.id !== id));
   }
 
-  const selectedRuns = selected ? runs.filter(r => toDateKey(r.created_at) === selected) : [];
-  const selectedWorkouts = selected ? workouts.filter(w => toDateKey(w.created_at) === selected) : [];
+  // 날짜를 고르면 그날만, 안 고르면 전체(최신순)
+  const shownRuns = selected ? runs.filter(r => r.performed_on === selected) : runs;
+  const shownWorkouts = selected ? workouts.filter(w => w.performed_on === selected) : workouts;
 
   const todayKey = toDateKey(today.toISOString());
 
@@ -90,17 +124,6 @@ export default function History() {
 
       {/* 탭 */}
       <div className="flex gap-2">
-        <button
-          onClick={() => { setTab("running"); setSelected(null); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-all ${
-            tab === "running"
-              ? "bg-orange-500/15 border-orange-500/30 text-orange-400"
-              : "border-border text-fg-subtle hover:border-fg-subtle"
-          }`}
-        >
-          <Sneaker size={16} weight={tab === "running" ? "fill" : "regular"} />
-          러닝
-        </button>
         <button
           onClick={() => { setTab("weight"); setSelected(null); }}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-all ${
@@ -111,6 +134,17 @@ export default function History() {
         >
           <Barbell size={16} weight={tab === "weight" ? "fill" : "regular"} />
           웨이트
+        </button>
+        <button
+          onClick={() => { setTab("running"); setSelected(null); }}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+            tab === "running"
+              ? "bg-orange-500/15 border-orange-500/30 text-orange-400"
+              : "border-border text-fg-subtle hover:border-fg-subtle"
+          }`}
+        >
+          <Sneaker size={16} weight={tab === "running" ? "fill" : "regular"} />
+          러닝
         </button>
       </div>
 
@@ -174,20 +208,41 @@ export default function History() {
         </div>
       </div>
 
-      {/* 선택된 날 상세 */}
-      {selected && (
+      {/* 로드 에러 표시 */}
+      {loadError && (
+        <p className="text-sm text-red-400 text-center py-2">불러오기 오류: {loadError}</p>
+      )}
+
+      {/* 기록 없을 때 안내 */}
+      {!loading && !loadError && (tab === "weight" ? workouts.length === 0 : runs.length === 0) && (
+        <p className="text-sm text-fg-subtle text-center py-4">
+          {tab === "weight"
+            ? "저장된 운동 기록이 없어요. 웨이트 탭에서 운동을 저장해보세요."
+            : "저장된 러닝 기록이 없어요. 러닝 탭에서 달려보세요."}
+        </p>
+      )}
+
+      {/* 기록 목록 — 날짜 선택 시 그날만, 아니면 전체(최신순) */}
+      {(tab === "running" ? shownRuns.length > 0 : shownWorkouts.length > 0) && (
         <div className="space-y-2">
           <p className="text-xs text-fg-subtle uppercase tracking-widest px-1">
-            {new Date(selected).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
+            {selected
+              ? new Date(selected).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })
+              : "전체 기록"}
           </p>
 
-          {tab === "running" && selectedRuns.map(run => (
+          {tab === "running" && shownRuns.map(run => (
             <div key={run.id} className="rounded-xl bg-surface-raised border border-border px-4 py-3 flex items-center gap-4">
               <div className="flex-1">
-                <p className="text-lg font-bold text-fg">{run.distance.toFixed(2)} km</p>
+                {!selected && (
+                  <p className="text-xs text-fg-subtle">
+                    {new Date(run.performed_on).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
+                  </p>
+                )}
+                <p className="text-lg font-bold text-fg">{run.distance_km.toFixed(2)} km</p>
                 <div className="flex gap-3 text-xs text-fg-muted mt-0.5">
-                  <span>{String(run.minutes).padStart(2, "0")}:{String(run.seconds).padStart(2, "0")}</span>
-                  <span>{formatPace(run.distance, run.minutes * 60 + run.seconds)} /km</span>
+                  <span>{String(Math.floor(run.duration_seconds / 60)).padStart(2, "0")}:{String(run.duration_seconds % 60).padStart(2, "0")}</span>
+                  <span>{formatPace(run.distance_km, run.duration_seconds)} /km</span>
                 </div>
               </div>
               <button
@@ -199,10 +254,16 @@ export default function History() {
             </div>
           ))}
 
-          {tab === "weight" && selectedWorkouts.map(workout => (
+          {tab === "weight" && shownWorkouts.map(workout => (
             <div key={workout.id} className="rounded-xl bg-surface-raised border border-border px-4 py-3 space-y-2">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2 flex-1">
+                  {/* 전체 보기일 땐 카드마다 날짜 표시 */}
+                  {!selected && (
+                    <p className="text-xs text-fg-subtle">
+                      {new Date(workout.performed_on).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
+                    </p>
+                  )}
                   {workout.exercises.map((ex, i) => (
                     <div key={i}>
                       <p className="text-sm font-medium text-fg">{ex.name}</p>
@@ -211,6 +272,11 @@ export default function History() {
                       </p>
                     </div>
                   ))}
+                  {workout.memo && (
+                    <p className="text-xs text-fg-subtle italic pt-1 border-t border-border-subtle">
+                      {workout.memo}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => deleteWorkout(workout.id)}

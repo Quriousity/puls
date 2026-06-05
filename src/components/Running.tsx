@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Pause, Play, Stop, Trash, MapPin } from "@phosphor-icons/react";
 import HeroCarousel, { unsplash, type HeroItem } from "@/components/HeroCarousel";
+import { supabase } from "@/lib/supabase";
 
 // 광고용 hero (러닝)
 const heroes: HeroItem[] = [
@@ -13,10 +15,10 @@ const heroes: HeroItem[] = [
 
 type Run = {
   id: string;
-  date: string;
-  distance: number;
-  minutes: number;
-  seconds: number;
+  distance_km: number;
+  duration_seconds: number;
+  performed_on: string;
+  created_at: string;
 };
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -46,8 +48,11 @@ function formatDuration(totalCentiseconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
 }
 
-function formatDurationFromMinSec(minutes: number, seconds: number): string {
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+// 총 초 → mm:ss (저장된 기록 표시용)
+function formatDurationSeconds(total: number): string {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 type GpsStatus = "idle" | "acquiring" | "ready" | "denied" | "unavailable";
@@ -59,24 +64,65 @@ export default function Running() {
   const [elapsed, setElapsed] = useState(0);
   const [distance, setDistance] = useState(0);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("idle");
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const lastPosRef = useRef<GeolocationCoordinates | null>(null);
   const timerStateRef = useRef<TimerState>("idle");
-  const runIdRef = useRef(0);
+
+  function stopAll() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (countdownRef.current) clearTimeout(countdownRef.current);
+    if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+  }
 
   useEffect(() => {
     return () => stopAll();
   }, []);
 
+  // 저장된 러닝 기록 로드 (RLS 로 본인 것만)
+  useEffect(() => {
+    supabase
+      .from("runs")
+      .select("id, distance_km, duration_seconds, performed_on, created_at")
+      .order("performed_on", { ascending: false })
+      .then(({ data }) => {
+        if (data) setRuns(data as Run[]);
+      });
+  }, []);
+
+  // 카운트다운/러닝 중엔 모바일 탭바·헤더 숨김 (전체화면 몰입). 언마운트 시 해제.
+  useEffect(() => {
+    const immersive = timerState !== "idle" || countdown !== null;
+    document.body.classList.toggle("run-active", immersive);
+    return () => document.body.classList.remove("run-active");
+  }, [timerState, countdown]);
+
   useEffect(() => {
     timerStateRef.current = timerState;
   }, [timerState]);
 
-  function stopAll() {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+  // Run 누르면 3·2·1 카운트다운 후 실제 start()
+  function beginCountdown() {
+    if (!navigator.geolocation) {
+      setGpsStatus("unavailable");
+      return;
+    }
+    let n = 3;
+    setCountdown(n);
+    const tick = () => {
+      n -= 1;
+      if (n <= 0) {
+        setCountdown(null);
+        start();
+      } else {
+        setCountdown(n);
+        countdownRef.current = setTimeout(tick, 1000);
+      }
+    };
+    countdownRef.current = setTimeout(tick, 1000);
   }
 
   function start() {
@@ -134,29 +180,37 @@ export default function Running() {
     }
   }
 
-  function stop() {
+  async function stop() {
     stopAll();
 
-    if (elapsed > 0) {
-      const run: Run = {
-        id: String(++runIdRef.current),
-        date: new Date().toISOString(),
-        distance,
-        minutes: Math.floor(elapsed / 6000),
-        seconds: Math.floor((elapsed % 6000) / 100),
-      };
-      setRuns(prev => [run, ...prev]);
-    }
+    // 리셋 전에 값 캡처
+    const distKm = distance;
+    const durationSeconds = Math.floor(elapsed / 100); // 센티초 → 초
+    const hadRun = elapsed > 0;
 
+    // UI는 즉시 초기화
     setTimerState("idle");
     setElapsed(0);
     setDistance(0);
     setGpsStatus("idle");
     lastPosRef.current = null;
+
+    if (!hadRun) return;
+
+    // performed_on 은 로컬 날짜로 명시 (DB 기본값 current_date 는 UTC)
+    const d = new Date();
+    const performedOn = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const { data, error } = await supabase
+      .from("runs")
+      .insert({ performed_on: performedOn, distance_km: distKm, duration_seconds: durationSeconds })
+      .select("id, distance_km, duration_seconds, performed_on, created_at")
+      .single();
+    if (!error && data) setRuns(prev => [data as Run, ...prev]);
   }
 
-  function deleteRun(id: string) {
-    setRuns(prev => prev.filter(r => r.id !== id));
+  async function deleteRun(id: string) {
+    const { error } = await supabase.from("runs").delete().eq("id", id);
+    if (!error) setRuns(prev => prev.filter(r => r.id !== id));
   }
 
   const isActive = timerState !== "idle";
@@ -164,17 +218,36 @@ export default function Running() {
   return (
     <div className="max-w-lg mx-auto px-6 py-8 space-y-6">
 
-      {/* 운동할 곳 찾기 */}
-      <button className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 transition-colors text-sm font-medium">
+      {/* 3·2·1 카운트다운 — body 로 포털해서 viewport 전체를 확실히 덮음 */}
+      {countdown !== null && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <span
+            key={countdown}
+            className="animate-count-pop text-[12rem] leading-none font-black italic text-orange-400 tabular-nums drop-shadow-[0_0_40px_rgba(249,115,22,0.55)]"
+          >
+            {countdown}
+          </span>
+        </div>,
+        document.body,
+      )}
+
+      {/* 운동할 곳 찾기 — 카카오맵 공원 검색을 새창으로 */}
+      <a
+        href="https://map.kakao.com/?q=공원"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 transition-colors text-sm font-medium"
+      >
         <MapPin size={16} weight="fill" />
         운동할 곳 찾기
-      </button>
+      </a>
 
       {/* 광고 Hero (캐러셀) */}
       <HeroCarousel items={heroes} />
 
       {isActive ? (
-        <div className="rounded-xl bg-surface border border-border p-6 space-y-6">
+        // 모바일: 전체화면으로 꽉 차게 (정지 및 저장 전까지) / 데스크탑: 기존 카드
+        <div className="fixed inset-0 z-50 flex flex-col justify-center gap-6 bg-surface p-6 overflow-auto md:static md:z-auto md:justify-start md:rounded-xl md:border md:border-border md:p-6">
 
           {/* GPS 상태 */}
           <div className="flex items-center gap-1.5">
@@ -192,7 +265,7 @@ export default function Running() {
 
           {/* 거리 */}
           <div className="text-center">
-            <p className="text-7xl font-bold text-fg tabular-nums">
+            <p className="text-8xl md:text-7xl font-bold text-fg tabular-nums">
               {distance.toFixed(2)}
             </p>
             <p className="text-fg-muted mt-1">km</p>
@@ -247,7 +320,7 @@ export default function Running() {
           )}
 
           <button
-            onClick={start}
+            onClick={beginCountdown}
             className="w-full py-4 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 transition-colors text-base font-semibold"
           >
             Run
@@ -262,11 +335,11 @@ export default function Running() {
           {runs.map(run => (
             <div key={run.id} className="rounded-xl bg-surface-raised border border-border px-4 py-3 flex items-center gap-4">
               <div className="flex-1 min-w-0">
-                <p className="text-lg font-bold text-fg">{run.distance.toFixed(2)} km</p>
+                <p className="text-lg font-bold text-fg">{run.distance_km.toFixed(2)} km</p>
                 <div className="flex items-center gap-3 text-xs text-fg-muted">
-                  <span>{formatDurationFromMinSec(run.minutes, run.seconds)}</span>
-                  <span>{formatPace(run.distance, run.minutes * 60 + run.seconds)} /km</span>
-                  <span>{new Date(run.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
+                  <span>{formatDurationSeconds(run.duration_seconds)}</span>
+                  <span>{formatPace(run.distance_km, run.duration_seconds)} /km</span>
+                  <span>{new Date(run.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
                 </div>
               </div>
               <button
